@@ -1,0 +1,172 @@
+/*
+***AtkMan***
+See vars for args
+Must have three scripts on your pervers: grow, hack, and weak.script. Each with their respective commands 
+and the target "args[0]". (like this-> weaken(args[0]))
+
+This script requires good ram on your servers to run becuse it assumes that condition, if you don't
+have enough ram to run the script, you can try increasing the "speed", and/or decreasing the "amount."
+Your target must be "primed" at max money, min security.
+*/
+
+disableLog("ALL");
+//vars
+var i = 0;
+var wekserv = [];
+var grwserv = [];
+var hckserv = [];
+var unqid = 0;
+var target = args[0];
+var speed = args[2]; //Multiplier. 1 is 100ms, 2 is 200ms etc.
+var amount = args[1]; //between 0 and 1, total percent of money to hack/grow
+
+//counts for one run
+var grwcount = Math.ceil(growthAnalyze(target, getServerMaxMoney(target) * amount));
+var wekcount = Math.ceil(2 * (grwcount / 25));
+var hckcount = Math.ceil(hackAnalyzeThreads(target, 100 * amount));
+var wekcount = wekcount + Math.ceil(2 * (hckcount / 20));
+
+var grwtime = (getWeakenTime(target) - getGrowTime(target));
+var hcktime = (getWeakenTime(target) - getHackTime(target));
+var space = getHackTime(target) / 2;
+var size = 300 * speed;
+var loops = Math.floor(space / size);
+tprint(target + ": Loops = " + loops);
+
+var totcount = (wekcount * loops) + (hckcount * loops) + (grwcount * loops);
+var servtot = readPort(3);
+if (servtot >= totcount) {
+	var servtot = servtot - totcount;
+	writePort(3, servtot);
+}
+else { exit() };
+
+//per server count: 599186
+tprint(target + ": scheduling wek");
+//reserve server space
+var i = 0;
+while (i <= loops) {
+	var servnum = readPort(1);
+	var servcnt = readPort(1);
+	writePort(1, servnum);
+
+	if (servcnt >= wekcount) {
+		wekserv.push(servnum);
+		var servcnt = servcnt - wekcount;
+		writePort(1, servcnt);
+		++i;
+	}
+	else { writePort(1, servcnt); }
+
+	if (i == Math.floor(loops * 0.25)) { tprint(target + ": 25%"); }
+	if (i == Math.floor(loops * 0.50)) { tprint(target + ": 50%"); }
+	if (i == Math.floor(loops * 0.75)) { tprint(target + ": 75%"); }
+}
+
+tprint(target + " scheduling grw")
+var i = 0;
+while (i <= loops) {
+	var servnum = readPort(1);
+	var servcnt = readPort(1);
+	writePort(1, servnum);
+
+	if (servcnt >= grwcount) {
+		grwserv.push(servnum);
+		var servcnt = servcnt - grwcount;
+		writePort(1, servcnt);
+		++i;
+	}
+	else { writePort(1, servcnt); }
+
+	if (i == Math.floor(loops * 0.25)) { tprint(target + ": 25%"); }
+	if (i == Math.floor(loops * 0.50)) { tprint(target + ": 50%"); }
+	if (i == Math.floor(loops * 0.75)) { tprint(target + ": 75%"); }
+}
+
+tprint(target + ": scheduling hck");
+var i = 0;
+while (i <= loops) {
+	var servnum = readPort(1);
+	var servcnt = readPort(1);
+	writePort(1, servnum);
+
+	if (servcnt >= hckcount) {
+		hckserv.push(servnum);
+		var servcnt = servcnt - hckcount;
+		writePort(1, servcnt);
+		++i;
+	}
+	else { writePort(1, servcnt); }
+
+	if (i == Math.floor(loops * 0.25)) { tprint(target + ": 25%"); }
+	if (i == Math.floor(loops * 0.50)) { tprint(target + ": 50%"); }
+	if (i == Math.floor(loops * 0.75)) { tprint(target + ": 75%"); }
+}
+writePort(2, 1);
+tprint(target + ": **AtkSch Starting.**");
+
+//run scheduel
+var lastmon = getServerMoneyAvailable("home");
+while (true) {
+
+	var curmon = getServerMoneyAvailable("home");
+	tprint(target + ": Money made since last loop: " + nFormat(curmon - lastmon, '0.00a'));
+	var lastmon = curmon;
+
+	if (peek(9) == 1) {
+		if (peek(10) == "NULL PORT DATA") {
+			tprint(target + ": Exiting");
+			exit();
+		}
+		else if (peek(10) == target) {
+			clearPort(9); clearPort(10);
+			tprint(target + ": Exiting");
+			exit();
+		}
+	}
+
+	tprint(target + ": Weak calls start now");
+
+	var grwtime = (getWeakenTime(target) - getGrowTime(target)) - (100 * speed);
+	var hcktime = (getWeakenTime(target) - getHackTime(target)) - (200 * speed);
+	var endwait = getHackTime(target) + (300 * speed);
+	var time = Date.now();
+
+	var i = 0;
+	while (i < wekserv.length) {
+		exec("weak.script", "pserv-" + wekserv, wekcount, target, unqid);
+		++unqid;
+		++i;
+		sleep(300 * speed);
+	}
+
+	tprint(target + ": Weak calls done. Grow calls start in " + tFormat(grwtime - (Date.now() - time)));
+
+	while (Date.now() - time < grwtime) { sleep(5); }
+
+	var i = 0;
+	while (i < grwserv.length) {
+		exec("grow.script", "pserv-" + grwserv, grwcount, target, unqid);
+		++unqid;
+		++i;
+		sleep(300 * speed);
+	}
+
+	tprint(target + ": Grow calls done. Hack calls start in " + tFormat(hcktime - (Date.now() - time)));
+
+	while (Date.now() - time < hcktime) { sleep(5); }
+
+	var i = 0;
+	while (i < hckserv.length) {
+		exec("hack.script", "pserv-" + hckserv, hckcount, target, unqid);
+		++unqid;
+		++i;
+		sleep(300 * speed);
+	}
+
+	var time = Date.now();
+	tprint(target + ": Hack calls done. Script loops in " + tFormat(endwait - (Date.now() - time)));
+
+	while (Date.now() - time < endwait) { sleep(5); }
+
+}

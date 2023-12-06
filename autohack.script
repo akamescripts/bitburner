@@ -1,0 +1,3 @@
+var target = "n00dles";
+connect(target);
+run early-hacking-template.script();
